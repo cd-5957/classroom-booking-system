@@ -1,0 +1,267 @@
+<!-- pages/index/index.wxml -->
+<view class="container">
+  <!-- 页面头部 -->
+  <view class="nav-container">
+    <!-- 标题栏 -->
+    <view class="header-bar">
+      <text class="header-title">逸动未来教室预约系统</text>
+    </view>
+  </view>
+
+  <!-- 按钮区 -->
+  <view class="nav-buttons">
+    <button bindtap="openBatchBookingModal" class="batch-booking-btn">我要预约</button>
+    <button wx:if="{{ !isAdmin }}" bindtap="openAdminLoginModal" class="admin-login-btn">管理员登录</button>
+    <button wx:else bindtap="logoutAdmin" class="admin-logout-btn">退出登录</button>
+  </view>
+
+  <!-- 内容区域 -->
+  <view class="content">
+  <view class="tip-box">
+    <text class="tip-text">点击日期查看当日已预约时间，并新增预约记录</text>
+  </view>
+  
+  <!-- 加载状态 -->
+  <view wx:if="{{ isLoading }}" class="loading-overlay">
+    <view class="loading-content">
+      <text class="loading-text">加载中...</text>
+    </view>
+  </view>
+  
+  <!-- 日历导航 -->
+  <view class="card">
+    <!-- 年月显示 -->
+    <view class="month-display">
+      <text class="current-month">{{ currentMonthYear }}</text>
+    </view>
+    
+    <!-- 日历网格 -->
+    <view class="calendar-grid">
+      <!-- 星期标题 -->
+      <view wx:for="{{ weekDays }}" wx:key="{{ index }}" class="weekday">{{ item }}</view>
+      
+      <!-- 日期单元格 -->
+      <view 
+        wx:for="{{ calendarDays }}" 
+        wx:key="{{ item.date }}"
+        bindtap="handleDayClick"
+        data-day="{{ item }}"
+        class="calendar-day {{ item.isCurrentMonth ? 'current-month' : 'other-month' }} {{ item.isPastDate ? 'past-date' : '' }} {{ item.bookingCount > 0 ? 'has-booking' : '' }}"
+      >
+        <text class="day-number">{{ item.day }}</text>
+        <text wx:if="{{ item.bookingCount > 0 }}" class="booking-count">{{ item.bookingCount }}</text>
+        <view wx:if="{{ item.bookingCount > 0 }}" class="booking-times">
+          <view wx:for="{{ item.bookings }}" wx:for-item="booking" wx:key="{{ index }}" class="booking-time-slot">
+            <text class="time-slot-text">{{ booking.startTimeStr }} - {{ booking.endTimeStr }}</text>
+          </view>
+        </view>
+      </view>
+    </view>
+    
+    <!-- 月份导航按钮 -->
+    <view class="month-nav-buttons">
+      <button bindtap="prevMonth" disabled="{{ !canPrevMonth }}" class="nav-btn {{ !canPrevMonth ? 'disabled' : '' }}">上一月</button>
+      <button bindtap="nextMonth" class="nav-btn">下一月</button>
+    </view>
+  </view>
+  
+  <!-- 联系信息 -->
+  <view class="footer">
+    <text class="footer-text">有问题请联系微信：ydwl_1617</text>
+  </view>
+  
+  <!-- 当日预约明细弹框 -->
+  <view wx:if="{{ showDayDetailModal }}" class="modal-overlay">
+    <view class="modal-content">
+      <view class="modal-header">
+        <text class="modal-title">{{ selectedDayDetail }}</text>
+      </view>
+      <view class="modal-body">
+        <view wx:if="{{ selectedDayBookings.length === 0 }}" class="no-bookings">
+          <text>当日暂无预约记录</text>
+        </view>
+        <view wx:else class="booking-list">
+          <view wx:for="{{ selectedDayBookings }}" wx:key="index" class="booking-item">
+            <view class="booking-time" style="display: block; color: red; font-size: 24rpx; margin-bottom: 8rpx;">
+              <text class="time-text">{{ item.startTimeStr }} - {{ item.endTimeStr }}</text>
+            </view>
+            <view class="booking-info">
+              <text class="booking-name">{{ item.name }}</text>
+              <button wx:if="{{ isAdmin }}" bindtap="deleteBooking" data-id="{{ item._id }}" class="delete-btn">删除</button>
+            </view>
+          </view>
+        </view>
+      </view>
+      <view class="modal-footer">
+        <button bindtap="closeDayDetailModal" class="btn-secondary">关闭</button>
+        <button bindtap="openBookingModal" class="btn-primary">我要预约</button>
+      </view>
+    </view>
+  </view>
+  
+  <!-- 预约表单弹框 -->
+  <view wx:if="{{ showBookingModal }}" class="modal-overlay">
+    <view class="modal-content">
+      <view class="modal-header">
+        <text class="modal-title">预约 {{ selectedDate }}</text>
+      </view>
+      <view class="modal-body">
+        <!-- 预约消息 -->
+        <view wx:if="{{ bookingMessage }}" class="message-box {{ bookingMessageType }}">
+          <text>{{ bookingMessage }}</text>
+        </view>
+        
+        <!-- 预约表单 -->
+        <view class="form-group">
+          <text class="form-label">姓名</text>
+          <input 
+            bindinput="handleInput" 
+            data-name="name" 
+            value="{{ bookingForm.name }}" 
+            placeholder="请输入您的姓名" 
+            class="form-input"
+          />
+        </view>
+        <view class="form-group">
+          <text class="form-label">开始时间</text>
+          <picker 
+            mode="time" 
+            value="{{ bookingForm.startTime }}" 
+            start="00:00" 
+            end="20:00" 
+            bindchange="handleTimeChange" 
+            data-name="startTime"
+            class="form-picker"
+          >
+            <view class="picker-content">
+              {{ bookingForm.startTime || '请选择开始时间' }}
+            </view>
+          </picker>
+        </view>
+        <view class="form-group">
+          <text class="form-label">结束时间</text>
+          <picker 
+            mode="time" 
+            value="{{ bookingForm.endTime }}" 
+            start="00:00" 
+            end="21:00" 
+            bindchange="handleTimeChange" 
+            data-name="endTime"
+            class="form-picker"
+          >
+            <view class="picker-content">
+              {{ bookingForm.endTime || '请选择结束时间' }}
+            </view>
+          </picker>
+        </view>
+        <view wx:if="{{ bookingForm.startTime && bookingForm.endTime }}" class="duration-info">
+          <text class="duration-text">预约时长：{{ duration }} 小时</text>
+        </view>
+      </view>
+      <view class="modal-footer">
+        <button bindtap="closeBookingModal" class="btn-secondary">取消</button>
+        <button bindtap="submitBooking" disabled="{{ isSubmitting }}" class="btn-primary">
+          {{ isSubmitting ? '提交中...' : '确认预约' }}
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 管理员登录弹框 -->
+  <view wx:if="{{ showAdminLoginModal }}" class="modal-overlay">
+    <view class="modal-content">
+      <view class="modal-header">
+        <text class="modal-title">管理员登录</text>
+      </view>
+      <view class="modal-body">
+        <view class="form-group">
+          <text class="form-label">管理员密码</text>
+          <input 
+            bindinput="handleAdminPasswordInput" 
+            value="{{ adminPassword }}" 
+            placeholder="请输入管理员密码" 
+            password 
+            class="form-input"
+          />
+        </view>
+      </view>
+      <view class="modal-footer">
+        <button bindtap="closeAdminLoginModal" class="btn-secondary">取消</button>
+        <button bindtap="submitAdminLogin" disabled="{{ isSubmitting }}" class="btn-primary">
+          {{ isSubmitting ? '登录中...' : '登录' }}
+        </button>
+      </view>
+    </view>
+  </view>
+  
+  <!-- 批量预约弹框 -->
+  <view wx:if="{{ showBatchBookingModal }}" class="modal-overlay">
+    <view class="modal-content">
+      <view class="modal-header">
+        <text class="modal-title">批量预约</text>
+      </view>
+      <view class="modal-body">
+        <view class="form-group">
+          <text class="form-label">姓名</text>
+          <input 
+            bindinput="handleBatchInput" 
+            data-name="name" 
+            value="{{ batchBookingForm.name }}" 
+            placeholder="请输入您的姓名" 
+            class="form-input"
+          />
+        </view>
+        <view class="form-group">
+          <text class="form-label">开始时间</text>
+          <picker 
+            mode="time" 
+            value="{{ batchBookingForm.startTime }}" 
+            start="00:00" 
+            end="20:00" 
+            bindchange="handleBatchTimeChange" 
+            data-name="startTime"
+            class="form-picker"
+          >
+            <view class="picker-content">
+              {{ batchBookingForm.startTime || '请选择开始时间' }}
+            </view>
+          </picker>
+        </view>
+        <view class="form-group">
+          <text class="form-label">结束时间</text>
+          <picker 
+            mode="time" 
+            value="{{ batchBookingForm.endTime }}" 
+            start="00:00" 
+            end="21:00" 
+            bindchange="handleBatchTimeChange" 
+            data-name="endTime"
+            class="form-picker"
+          >
+            <view class="picker-content">
+              {{ batchBookingForm.endTime || '请选择结束时间' }}
+            </view>
+          </picker>
+        </view>
+        <view class="form-group">
+          <text class="form-label">选择日期</text>
+          <view class="date-picker-container">
+            <view wx:for="{{ calendarDays }}" wx:key="{{ item.date }}" class="date-picker-item {{ item.isCurrentMonth ? 'current-month' : 'other-month' }} {{ item.selected ? 'selected' : '' }}" bindtap="toggleBatchDate" data-date="{{ item.date }}">
+              <text class="date-picker-day">{{ item.day }}</text>
+            </view>
+          </view>
+        </view>
+        <view wx:if="{{ batchBookingForm.startTime && batchBookingForm.endTime }}" class="duration-info">
+          <text class="duration-text">预约时长：{{ batchDuration }} 小时</text>
+        </view>
+      </view>
+      <view class="modal-footer">
+        <button bindtap="closeBatchBookingModal" class="btn-secondary">取消</button>
+        <button bindtap="submitBatchBooking" disabled="{{ isSubmitting || batchSelectedDates.length === 0 }}" class="btn-primary">
+          {{ isSubmitting ? '提交中...' : '提交预约' }}
+        </button>
+      </view>
+    </view>
+  </view>
+</view>
+</view>
