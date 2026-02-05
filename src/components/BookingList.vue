@@ -245,48 +245,23 @@
 import { ref, computed, onMounted, watch } from 'vue'
 
 // 微信云开发配置
-const APPID = 'wx5b4ca21b8b47b883' // 替换为你的小程序AppID
-const APPSECRET = '1bc6f78ca8056305460d73af9026e626' // 替换为你的小程序AppSecret
 const ENV = 'cloud1-2gs6ioay8f351f18'
 
-// 获取access_token
-let accessToken = ''
-let accessTokenExpire = 0
-
-const getAccessToken = async () => {
-  if (Date.now() < accessTokenExpire) {
-    return accessToken
-  }
-  
-  try {
-    const response = await fetch(`https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=${APPID}&secret=${APPSECRET}`)
-    const data = await response.json()
-    if (data.access_token) {
-      accessToken = data.access_token
-      accessTokenExpire = Date.now() + (data.expires_in - 60) * 1000
-      return accessToken
-    } else {
-      throw new Error('获取access_token失败')
-    }
-  } catch (error) {
-    console.error('获取access_token失败:', error)
-    throw error
-  }
-}
+// 云函数HTTP触发器URL
+const CLOUD_FUNCTION_URL = 'https://cloud1-2gs6ioay8f351f18.servicewechat.com/bookings'
 
 // 调用云函数的通用方法
 const callCloudFunction = async (action, data = {}) => {
   try {
-    const token = await getAccessToken()
-    const response = await fetch(`https://api.weixin.qq.com/tcb/invokecloudfunction?access_token=${token}`, {
+    // 直接调用云函数的HTTP触发器
+    const response = await fetch(CLOUD_FUNCTION_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        env: ENV,
-        name: 'bookings',
-        data: JSON.stringify({ action, data })
+        action,
+        data
       })
     })
     
