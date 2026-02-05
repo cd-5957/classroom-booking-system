@@ -9,8 +9,8 @@ cloud.init({
 // 获取数据库引用
 const db = cloud.database()
 
-// 云函数入口函数
-exports.main = async (event, context) => {
+// 处理云函数调用
+const handleCloudFunction = async (event) => {
   console.log('云函数接收到的参数:', event)
   
   try {
@@ -67,5 +67,47 @@ exports.main = async (event, context) => {
   } catch (error) {
     console.error('云函数错误:', error)
     return { success: false, message: error.message }
+  }
+}
+
+// 云函数入口函数
+exports.main = async (event, context) => {
+  // 检查是否是HTTP触发器调用
+  if (event.httpMethod) {
+    // HTTP触发器调用
+    try {
+      // 解析请求体
+      const requestData = event.body ? JSON.parse(event.body) : {}
+      // 处理云函数调用
+      const result = await handleCloudFunction(requestData)
+      // 返回HTTP响应
+      return {
+        isBase64Encoded: false,
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*', // 允许跨域访问
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        },
+        body: JSON.stringify(result)
+      }
+    } catch (error) {
+      console.error('HTTP触发器错误:', error)
+      return {
+        isBase64Encoded: false,
+        statusCode: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        },
+        body: JSON.stringify({ success: false, message: error.message })
+      }
+    }
+  } else {
+    // 普通云函数调用
+    return handleCloudFunction(event)
   }
 }

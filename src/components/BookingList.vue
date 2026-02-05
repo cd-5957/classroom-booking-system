@@ -1,123 +1,120 @@
 <template>
-  <div class="bg-white rounded-lg shadow-md p-4 sm:p-6">
-    <h2 class="text-xl font-semibold mb-2">预约日历</h2>
-    <p class="text-sm text-gray-500 mb-4">点击日期查看当日已预约时间，并新增预约记录</p>
-    
-    <!-- 日历导航 -->
-    <div class="flex justify-between items-center mb-4">
+  <div class="space-y-6">
+    <!-- 操作按钮 -->
+    <div class="flex flex-wrap gap-4 mb-6">
       <button 
-        @click="prevMonth" 
-        class="px-3 py-1 rounded transition-colors"
-        :class="currentDate.isSame(dayjs(), 'month') ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer'"
+        @click="showBookingModal = true"
+        class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
       >
-        上一月
+        我要预约
       </button>
-      <h3 class="text-lg font-medium">{{ currentMonthYear }}</h3>
       <button 
-        @click="nextMonth" 
-        class="px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 cursor-pointer transition-colors"
+        @click="showBatchBookingModal = true"
+        class="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
       >
-        下一月
+        批量预约
       </button>
     </div>
-    
-    <!-- 日历网格 -->
-    <div v-if="isLoading" class="py-8 text-center">
-      <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-      <p class="mt-2 text-gray-600">加载中...</p>
-    </div>
-    <div v-else class="grid grid-cols-7 gap-0.5">
-      <!-- 星期标题 -->
-      <div v-for="day in weekDays" :key="day" class="text-center py-1 sm:py-2 font-medium text-gray-600 text-xs sm:text-sm">{{ day }}</div>
-      
-      <!-- 日期单元格 -->
-      <div 
-        v-for="day in calendarDays" 
-        :key="day.date"
-        @click="handleDayClick(day)"
-        class="border rounded flex flex-col items-start p-1 transition-colors min-h-[60px] sm:min-h-[80px]"
-        :class="{
-          'bg-gray-100 text-gray-400 cursor-not-allowed': !day.isCurrentMonth || isPastDate(day.date),
-          'hover:bg-blue-50 cursor-pointer': day.isCurrentMonth && !isPastDate(day.date),
-          'bg-blue-100 cursor-pointer': day.isToday
-        }"
-      >
-        <div class="w-full flex justify-between items-center mb-1">
-          <span class="text-xs sm:text-sm">{{ day.day }}</span>
-          <span v-if="day.bookings && day.bookings.length > 0" class="text-xs bg-red-100 text-red-600 px-1 rounded-full">
-            {{ day.bookings.length }}
-          </span>
+
+    <!-- 日历部分 -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-semibold">{{ currentMonthYear }}</h2>
+        <div class="flex gap-2">
+          <button 
+            @click="prevMonth"
+            :disabled="!canPrevMonth"
+            class="bg-gray-200 hover:bg-gray-300 py-1 px-3 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            上月
+          </button>
+          <button 
+            @click="nextMonth"
+            class="bg-gray-200 hover:bg-gray-300 py-1 px-3 rounded-md"
+          >
+            下月
+          </button>
         </div>
-        <div v-if="day.bookings && day.bookings.length > 0" class="w-full space-y-0.5">
-          <div v-for="(booking, index) in day.bookings.slice(0, 2)" :key="index" class="text-[10px] sm:text-xs truncate text-gray-600">
-            {{ formatTime(booking.startTime) }}-{{ formatTime(booking.endTime) }}
-          </div>
-          <div v-if="day.bookings.length > 2" class="text-[10px] sm:text-xs text-gray-400">
-            +{{ day.bookings.length - 2 }} 更多
-          </div>
+      </div>
+
+      <!-- 星期标题 -->
+      <div class="grid grid-cols-7 gap-2 mb-2">
+        <div 
+          v-for="(day, index) in weekDays" 
+          :key="index"
+          class="text-center font-medium py-2"
+        >
+          {{ day }}
+        </div>
+      </div>
+
+      <!-- 日历日期 -->
+      <div class="grid grid-cols-7 gap-2">
+        <div 
+          v-for="(item, index) in calendarDays" 
+          :key="index"
+          :class="[
+            'date-picker-item text-center py-3 rounded-md cursor-pointer',
+            item.isCurrentMonth ? 'current-month' : 'other-month',
+            item.isPastDate ? 'past-date' : '',
+            item.selected ? 'selected' : '',
+            item.bookingCount > 0 ? 'has-booking' : ''
+          ]"
+          @click="toggleDaySelection(item.date)"
+        >
+          <div class="date-picker-day">{{ item.day }}</div>
+          <div v-if="item.bookingCount > 0" class="text-xs text-blue-600 mt-1">{{ item.bookingCount }} 个预约</div>
         </div>
       </div>
     </div>
-    
-    <!-- 当日预约明细弹框 -->
-    <div v-if="showDayDetailModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div class="bg-white rounded-lg shadow-xl p-4 sm:p-6 max-w-md w-full">
-        <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-medium">{{ selectedDayDetail }}</h3>
-          <button @click="showDayDetailModal = false" class="text-gray-500 hover:text-gray-700">×</button>
-        </div>
-        
-        <!-- 当日预约列表 -->
-        <div class="mb-4">
-          <h4 class="text-sm font-medium text-gray-600 mb-2">当日预约明细</h4>
-          <div v-if="selectedDayBookings.length === 0" class="py-4 text-center text-gray-500">
-            暂无预约记录
-          </div>
-          <div v-else class="space-y-2">
-            <div v-for="booking in selectedDayBookings" :key="booking._id" class="p-2 border rounded">
-              <div class="flex justify-between">
-                <span class="font-medium">{{ isAdmin ? booking.name : '已预约' }}</span>
-                <button 
-                  v-if="isAdmin" 
-                  @click="deleteBooking(booking._id)" 
-                  class="text-xs text-red-600 hover:text-red-900"
-                >
-                  删除
-                </button>
-              </div>
-              <div class="text-sm text-gray-600">
-                {{ formatTime(booking.startTime) }} - {{ formatTime(booking.endTime) }}
+
+    <!-- 预约记录列表 -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+      <h2 class="text-xl font-semibold mb-4">预约记录</h2>
+      <div v-if="bookings.length === 0" class="text-center py-8 text-gray-500">
+        暂无预约记录
+      </div>
+      <div v-else class="space-y-4">
+        <div 
+          v-for="booking in sortedBookings" 
+          :key="booking._id || booking.id"
+          class="border border-gray-200 rounded-md p-4 hover:bg-gray-50"
+        >
+          <div class="flex justify-between items-start">
+            <div>
+              <h3 class="font-medium">{{ booking.name }}</h3>
+              <div class="text-sm text-gray-600 mt-1">
+                <div>{{ formatDateTime(booking.startTime) }} - {{ formatDateTime(booking.endTime) }}</div>
+                <div class="mt-1">{{ calculateDuration(booking.startTime, booking.endTime) }} 小时</div>
               </div>
             </div>
+            <button 
+              v-if="isAdmin"
+              @click="deleteBooking(booking._id || booking.id)"
+              class="text-red-600 hover:text-red-800 text-sm"
+            >
+              删除
+            </button>
           </div>
         </div>
-        
-        <!-- 预约按钮 -->
-        <button 
-          @click="openBookingModal"
-          class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition-colors"
-        >
-          预约
-        </button>
       </div>
     </div>
-    
-    <!-- 预约弹框 -->
-    <div v-if="showBookingModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div class="bg-white rounded-lg shadow-xl p-4 sm:p-6 max-w-md w-full">
+
+    <!-- 预约弹窗 -->
+    <div v-if="showBookingModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full">
         <div class="flex justify-between items-center mb-4">
-          <h3 class="text-lg font-medium">预约 {{ selectedDate.format('YYYY-MM-DD') }}</h3>
-          <button @click="showBookingModal = false" class="text-gray-500 hover:text-gray-700">×</button>
+          <h3 class="text-lg font-medium">提交预约</h3>
+          <button @click="closeBookingModal" class="text-gray-500 hover:text-gray-700">×</button>
         </div>
-        
         <form @submit.prevent="submitBooking" class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">预约人</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">姓名</label>
             <input 
               v-model="bookingForm.name" 
               type="text" 
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="请输入预约人"
+              placeholder="请输入姓名"
               required
             />
           </div>
@@ -125,7 +122,7 @@
             <label class="block text-sm font-medium text-gray-700 mb-1">开始时间</label>
             <input 
               v-model="bookingForm.startTime" 
-              type="time" 
+              type="datetime-local" 
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
@@ -134,13 +131,22 @@
             <label class="block text-sm font-medium text-gray-700 mb-1">结束时间</label>
             <input 
               v-model="bookingForm.endTime" 
-              type="time" 
+              type="datetime-local" 
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
-          <div v-if="bookingForm.startTime && bookingForm.endTime" class="p-2 bg-gray-50 rounded">
-            <span class="text-sm text-gray-600">预约时长：{{ calculateDuration() }} 小时</span>
+          <div class="flex justify-between items-center">
+            <div class="text-sm text-gray-600">
+              时长: {{ duration }} 小时
+            </div>
+            <button 
+              type="button" 
+              @click="calculateDefaultDuration"
+              class="text-sm text-blue-600 hover:text-blue-800"
+            >
+              自动计算
+            </button>
           </div>
           <button 
             type="submit" 
@@ -155,45 +161,111 @@
         </div>
       </div>
     </div>
+
+    <!-- 批量预约弹窗 -->
+    <div v-if="showBatchBookingModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg shadow-xl p-6 max-w-md w-full">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-lg font-medium">批量预约</h3>
+          <button @click="closeBatchBookingModal" class="text-gray-500 hover:text-gray-700">×</button>
+        </div>
+        <form @submit.prevent="submitBatchBooking" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">姓名</label>
+            <input 
+              v-model="batchBookingForm.name" 
+              type="text" 
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="请输入姓名"
+              required
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">开始时间</label>
+            <input 
+              v-model="batchBookingForm.startTime" 
+              type="time" 
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">结束时间</label>
+            <input 
+              v-model="batchBookingForm.endTime" 
+              type="time" 
+              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">选择日期 ({{ selectedDates.length }} 天)</label>
+            <div class="flex flex-wrap gap-2">
+              <span 
+                v-for="(date, index) in selectedDates" 
+                :key="index"
+                class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full"
+              >
+                {{ date }} <button @click.stop="removeDateSelection(date)" class="ml-1 text-red-600 hover:text-red-800">&times;</button>
+              </span>
+            </div>
+            <div v-if="selectedDates.length === 0" class="text-sm text-gray-500 mt-1">
+              请在日历中选择日期
+            </div>
+          </div>
+          <div class="flex justify-between items-center">
+            <div class="text-sm text-gray-600">
+              时长: {{ batchDuration }} 小时/天
+            </div>
+            <button 
+              type="button" 
+              @click="calculateBatchDefaultDuration"
+              class="text-sm text-blue-600 hover:text-blue-800"
+            >
+              自动计算
+            </button>
+          </div>
+          <button 
+            type="submit" 
+            :disabled="isSubmitting || selectedDates.length === 0" 
+            class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {{ isSubmitting ? '提交中...' : `提交 ${selectedDates.length} 天预约` }}
+          </button>
+        </form>
+        <div v-if="bookingMessage" class="mt-4 p-3 rounded-md" :class="bookingMessageType === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'">
+          {{ bookingMessage }}
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, defineProps } from 'vue'
-import dayjs from 'dayjs'
+import { ref, computed, onMounted, watch } from 'vue'
 
-// 微信云开发配置
-const cloudEnv = 'cloud1-2gs6ioay8f351f18'
-const cloudFunctionName = 'bookings'
+// 云函数HTTP触发器URL
+const CLOUD_FUNCTION_URL = 'https://service-9l0f5w1b-1308503242.sh.apigw.tencentcs.com/release/bookings'
 
 // 调用云函数的通用方法
 const callCloudFunction = async (action, data = {}) => {
   try {
-    const response = await fetch('https://api.weixin.qq.com/tcb/invokecloudfunction', {
+    const response = await fetch(CLOUD_FUNCTION_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        env: cloudEnv,
-        name: cloudFunctionName,
-        data: JSON.stringify({ action, data })
-      })
+      body: JSON.stringify({ action, data })
     })
-    
     const result = await response.json()
-    
-    if (result.errcode !== 0) {
-      throw new Error(result.errmsg || '调用云函数失败')
-    }
-    
-    return result.function_result
+    return result
   } catch (error) {
     console.error('调用云函数出错:', error)
     throw error
   }
 }
 
+// Props
 const props = defineProps({
   isAdmin: {
     type: Boolean,
@@ -205,19 +277,19 @@ const props = defineProps({
   }
 })
 
+// 页面状态
+const currentDate = ref(new Date())
+const weekDays = ref(['日', '一', '二', '三', '四', '五', '六'])
+const calendarDays = ref([])
+const currentMonthYear = ref('')
+const canPrevMonth = ref(false)
 const bookings = ref([])
-const isLoading = ref(false)
-const currentDate = ref(dayjs())
-const weekDays = ['日', '一', '二', '三', '四', '五', '六']
+const selectedDates = ref([])
 
-// 弹框状态
-const showDayDetailModal = ref(false)
+// 预约弹窗
 const showBookingModal = ref(false)
-const selectedDate = ref(dayjs())
-const selectedDayBookings = ref([])
-const isSubmitting = ref(false)
-const bookingMessage = ref('')
-const bookingMessageType = ref('')
+const showBatchBookingModal = ref(false)
+const selectedDate = ref('')
 
 // 预约表单
 const bookingForm = ref({
@@ -225,183 +297,348 @@ const bookingForm = ref({
   startTime: '',
   endTime: ''
 })
+const batchBookingForm = ref({
+  name: '',
+  startTime: '',
+  endTime: ''
+})
+const duration = ref('0.0')
+const batchDuration = ref('0.0')
+const isSubmitting = ref(false)
+const bookingMessage = ref('')
+const bookingMessageType = ref('')
 
-// 计算当前月份和年份
-const currentMonthYear = computed(() => {
-  return currentDate.value.format('YYYY年MM月')
+// 计算属性：按时间排序的预约记录
+const sortedBookings = computed(() => {
+  return [...bookings.value].sort((a, b) => {
+    return new Date(a.startTime) - new Date(b.startTime)
+  })
 })
 
+// 初始化页面
+onMounted(() => {
+  initCalendar()
+  fetchBookings()
+})
+
+// 监听日期变化，重新计算日历
+watch(currentDate, () => {
+  initCalendar()
+})
+
+// 监听表单时间变化，自动计算时长
+watch(
+  [() => bookingForm.value.startTime, () => bookingForm.value.endTime],
+  () => {
+    calculateDurationFromForm()
+  }
+)
+
+watch(
+  [() => batchBookingForm.value.startTime, () => batchBookingForm.value.endTime],
+  () => {
+    calculateBatchDurationFromForm()
+  }
+)
+
+// 初始化日历
+const initCalendar = () => {
+  const year = currentDate.value.getFullYear()
+  const month = currentDate.value.getMonth()
+  
+  // 计算当前月份和年份
+  currentMonthYear.value = `${year}年${month + 1}月`
+  
+  // 生成日历日期
+  calendarDays.value = generateCalendarDays(year, month)
+  
+  // 检查是否可以查看上一月
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const firstDayOfMonth = new Date(year, month, 1)
+  canPrevMonth.value = firstDayOfMonth >= today
+}
+
 // 生成日历日期
-const calendarDays = computed(() => {
+const generateCalendarDays = (year, month) => {
   const days = []
-  const year = currentDate.value.year()
-  const month = currentDate.value.month()
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
   
   // 获取当月第一天
-  const firstDay = dayjs(new Date(year, month, 1))
+  const firstDay = new Date(year, month, 1)
   // 获取当月第一天是星期几
-  const startDay = firstDay.day()
+  const startDay = firstDay.getDay()
   // 获取当月最后一天
-  const lastDay = dayjs(new Date(year, month + 1, 0))
+  const lastDay = new Date(year, month + 1, 0)
   // 获取当月天数
-  const daysInMonth = lastDay.date()
+  const daysInMonth = lastDay.getDate()
   
   // 添加上个月的日期
   for (let i = startDay - 1; i >= 0; i--) {
-    const date = dayjs(new Date(year, month, -i))
+    const date = new Date(year, month, -i)
+    const dateStr = formatDate(date)
+    const isPastDate = date < today
+    const dayBookings = getBookingsOnDate(date, bookings.value)
+    
     days.push({
-      date: date.format('YYYY-MM-DD'),
-      day: date.date(),
+      date: dateStr,
+      day: date.getDate(),
       isCurrentMonth: false,
-      isToday: date.isSame(dayjs(), 'day'),
-      bookings: getBookingsOnDate(date)
+      isPastDate: isPastDate,
+      bookings: dayBookings,
+      bookingCount: dayBookings.length,
+      selected: selectedDates.value.includes(dateStr)
     })
   }
   
   // 添加当月的日期
   for (let i = 1; i <= daysInMonth; i++) {
-    const date = dayjs(new Date(year, month, i))
+    const date = new Date(year, month, i)
+    const dateStr = formatDate(date)
+    const isPastDate = date < today
+    const dayBookings = getBookingsOnDate(date, bookings.value)
+    
     days.push({
-      date: date.format('YYYY-MM-DD'),
+      date: dateStr,
       day: i,
       isCurrentMonth: true,
-      isToday: date.isSame(dayjs(), 'day'),
-      bookings: getBookingsOnDate(date)
+      isPastDate: isPastDate,
+      bookings: dayBookings,
+      bookingCount: dayBookings.length,
+      selected: selectedDates.value.includes(dateStr)
     })
   }
   
   // 添加下个月的日期，补满6行
   const remainingDays = 42 - days.length
   for (let i = 1; i <= remainingDays; i++) {
-    const date = dayjs(new Date(year, month + 1, i))
+    const date = new Date(year, month + 1, i)
+    const dateStr = formatDate(date)
+    const isPastDate = date < today
+    const dayBookings = getBookingsOnDate(date, bookings.value)
+    
     days.push({
-      date: date.format('YYYY-MM-DD'),
+      date: dateStr,
       day: i,
       isCurrentMonth: false,
-      isToday: date.isSame(dayjs(), 'day'),
-      bookings: getBookingsOnDate(date)
+      isPastDate: isPastDate,
+      bookings: dayBookings,
+      bookingCount: dayBookings.length,
+      selected: selectedDates.value.includes(dateStr)
     })
   }
   
   return days
-})
-
-// 获取某一天的预约记录
-const getBookingsOnDate = (date) => {
-  return bookings.value
-    .filter(booking => {
-      const bookingDate = dayjs(booking.startTime)
-      return bookingDate.isSame(date, 'day')
-    })
-    .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
 }
 
-// 获取选中日期的预约明细
-const selectedDayDetail = computed(() => {
-  return selectedDate.value.format('YYYY年MM月DD日')
-})
-
-// 上一月
-const prevMonth = () => {
-  // 只允许查看当前月份及之后的月份
-  const currentMonth = dayjs().startOf('month')
-  const targetMonth = currentDate.value.subtract(1, 'month').startOf('month')
+// 格式化日期
+const formatDate = (date) => {
+  const year = date.getFullYear()
+  const month = date.getMonth() + 1
+  const day = date.getDate()
   
-  if (!targetMonth.isBefore(currentMonth)) {
-    currentDate.value = currentDate.value.subtract(1, 'month')
-  }
+  const formattedMonth = month < 10 ? '0' + month : month
+  const formattedDay = day < 10 ? '0' + day : day
+  
+  return `${year}-${formattedMonth}-${formattedDay}`
 }
-
-// 下一月
-const nextMonth = () => {
-  currentDate.value = currentDate.value.add(1, 'month')
-}
-
-// 检查是否是当前月份或之后的月份
-const isCurrentOrFutureMonth = computed(() => {
-  const currentMonth = dayjs().startOf('month')
-  const targetMonth = currentDate.value.startOf('month')
-  return !targetMonth.isBefore(currentMonth)
-})
 
 // 格式化日期时间
 const formatDateTime = (dateTime) => {
-  return dayjs(dateTime).format('YYYY-MM-DD HH:mm')
+  const date = new Date(dateTime)
+  const year = date.getFullYear()
+  const month = date.getMonth() + 1
+  const day = date.getDate()
+  const hours = date.getHours()
+  const minutes = date.getMinutes()
+  
+  const formattedMonth = month < 10 ? '0' + month : month
+  const formattedDay = day < 10 ? '0' + day : day
+  const formattedHours = hours < 10 ? '0' + hours : hours
+  const formattedMinutes = minutes < 10 ? '0' + minutes : minutes
+  
+  return `${year}-${formattedMonth}-${formattedDay} ${formattedHours}:${formattedMinutes}`
 }
 
-// 格式化时间
-const formatTime = (dateTime) => {
-  return dayjs(dateTime).format('HH:mm')
-}
-
-// 处理日期点击
-const handleDayClick = (day) => {
-  if (!day.isCurrentMonth || isPastDate(day.date)) return
-  
-  selectedDate.value = dayjs(day.date)
-  
-  // 获取当天的预约记录并按时间排序
-  selectedDayBookings.value = bookings.value
+// 获取某一天的预约记录
+const getBookingsOnDate = (date, bookings) => {
+  return bookings
     .filter(booking => {
-      const bookingDate = dayjs(booking.startTime)
-      return bookingDate.isSame(selectedDate.value, 'day')
+      const bookingDate = new Date(booking.startTime)
+      return isSameDay(bookingDate, date)
     })
     .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
-  
-  showDayDetailModal.value = true
 }
 
-// 打开预约弹框
-const openBookingModal = () => {
-  // 重置表单
+// 判断是否是同一天
+const isSameDay = (date1, date2) => {
+  return (
+    date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getDate() === date2.getDate()
+  )
+}
+
+// 切换月份
+const prevMonth = () => {
+  currentDate.value = new Date(currentDate.value.getFullYear(), currentDate.value.getMonth() - 1, 1)
+}
+
+const nextMonth = () => {
+  currentDate.value = new Date(currentDate.value.getFullYear(), currentDate.value.getMonth() + 1, 1)
+}
+
+// 切换日期选择
+const toggleDaySelection = (date) => {
+  const index = selectedDates.value.indexOf(date)
+  if (index > -1) {
+    selectedDates.value.splice(index, 1)
+  } else {
+    selectedDates.value.push(date)
+  }
+  // 重新生成日历，更新选中状态
+  initCalendar()
+}
+
+// 移除日期选择
+const removeDateSelection = (date) => {
+  const index = selectedDates.value.indexOf(date)
+  if (index > -1) {
+    selectedDates.value.splice(index, 1)
+  }
+  // 重新生成日历，更新选中状态
+  initCalendar()
+}
+
+// 打开预约弹窗
+const openBookingModal = (date) => {
+  selectedDate.value = date
+  showBookingModal.value = true
+  // 设置默认时间
+  const now = new Date()
+  const defaultStart = new Date(date)
+  defaultStart.setHours(9, 0, 0, 0)
+  const defaultEnd = new Date(date)
+  defaultEnd.setHours(10, 0, 0, 0)
+  
+  bookingForm.value = {
+    name: '',
+    startTime: defaultStart.toISOString().slice(0, 16),
+    endTime: defaultEnd.toISOString().slice(0, 16)
+  }
+  calculateDefaultDuration()
+}
+
+// 关闭预约弹窗
+const closeBookingModal = () => {
+  showBookingModal.value = false
+  resetBookingForm()
+}
+
+// 关闭批量预约弹窗
+const closeBatchBookingModal = () => {
+  showBatchBookingModal.value = false
+  resetBatchBookingForm()
+}
+
+// 重置预约表单
+const resetBookingForm = () => {
   bookingForm.value = {
     name: '',
     startTime: '',
     endTime: ''
   }
+  duration.value = '0.0'
   bookingMessage.value = ''
-  showDayDetailModal.value = false
-  showBookingModal.value = true
+  bookingMessageType.value = ''
+  isSubmitting.value = false
 }
 
-// 计算预约时长（小时）
-const calculateDuration = () => {
-  if (!bookingForm.value.startTime || !bookingForm.value.endTime) {
-    return 0
+// 重置批量预约表单
+const resetBatchBookingForm = () => {
+  batchBookingForm.value = {
+    name: '',
+    startTime: '',
+    endTime: ''
   }
-  
-  // 使用当前选中的日期和输入的时间
-  const startDate = selectedDate.value.format('YYYY-MM-DD')
-  const start = dayjs(`${startDate} ${bookingForm.value.startTime}`)
-  const end = dayjs(`${startDate} ${bookingForm.value.endTime}`)
-  const duration = end.diff(start, 'hour', true)
-  
-  return duration.toFixed(1)
+  batchDuration.value = '0.0'
+  bookingMessage.value = ''
+  bookingMessageType.value = ''
+  isSubmitting.value = false
 }
 
-// 判断是否是过去的日期
-const isPastDate = (dateStr) => {
-  const date = dayjs(dateStr)
-  const today = dayjs().startOf('day')
-  return date.isBefore(today)
+// 计算默认时长
+const calculateDefaultDuration = () => {
+  if (bookingForm.value.startTime && bookingForm.value.endTime) {
+    const start = new Date(bookingForm.value.startTime)
+    const end = new Date(bookingForm.value.endTime)
+    const diff = (end - start) / (1000 * 60 * 60)
+    duration.value = diff.toFixed(1)
+  }
+}
+
+// 计算批量预约默认时长
+const calculateBatchDefaultDuration = () => {
+  if (batchBookingForm.value.startTime && batchBookingForm.value.endTime) {
+    const [startHours, startMinutes] = batchBookingForm.value.startTime.split(':').map(Number)
+    const [endHours, endMinutes] = batchBookingForm.value.endTime.split(':').map(Number)
+    const diff = (endHours - startHours) + (endMinutes - startMinutes) / 60
+    batchDuration.value = diff.toFixed(1)
+  }
+}
+
+// 从表单计算时长
+const calculateDurationFromForm = () => {
+  calculateDefaultDuration()
+}
+
+// 从批量预约表单计算时长
+const calculateBatchDurationFromForm = () => {
+  calculateBatchDefaultDuration()
+}
+
+// 计算时长
+const calculateDuration = (startTime, endTime) => {
+  const start = new Date(startTime)
+  const end = new Date(endTime)
+  const diff = (end - start) / (1000 * 60 * 60)
+  return diff.toFixed(1)
+}
+
+// 获取预约记录
+const fetchBookings = async () => {
+  try {
+    const result = await callCloudFunction('getBookings')
+    if (result.success) {
+      bookings.value = result.data || []
+    }
+  } catch (error) {
+    console.error('获取预约记录失败:', error)
+  }
 }
 
 // 提交预约
 const submitBooking = async () => {
+  // 表单验证
   if (!bookingForm.value.name || !bookingForm.value.startTime || !bookingForm.value.endTime) {
     bookingMessage.value = '请填写完整的预约信息'
     bookingMessageType.value = 'error'
     return
   }
   
-  // 使用当前选中的日期和输入的时间
-  const selectedDateStr = selectedDate.value.format('YYYY-MM-DD')
-  const startTime = dayjs(`${selectedDateStr} ${bookingForm.value.startTime}`)
-  const endTime = dayjs(`${selectedDateStr} ${bookingForm.value.endTime}`)
-  
-  // 验证结束时间是否晚于开始时间
-  if (endTime.isBefore(startTime)) {
+  // 时间验证
+  const start = new Date(bookingForm.value.startTime)
+  const end = new Date(bookingForm.value.endTime)
+  if (start >= end) {
     bookingMessage.value = '结束时间必须晚于开始时间'
+    bookingMessageType.value = 'error'
+    return
+  }
+  
+  // 检查是否与现有预约冲突
+  if (checkTimeConflict(start, end)) {
+    bookingMessage.value = '该时间段已被预约，请选择其他时间'
     bookingMessageType.value = 'error'
     return
   }
@@ -410,77 +647,204 @@ const submitBooking = async () => {
   try {
     const result = await callCloudFunction('createBooking', {
       name: bookingForm.value.name,
-      startTime: startTime.toISOString(),
-      endTime: endTime.toISOString()
+      startTime: bookingForm.value.startTime,
+      endTime: bookingForm.value.endTime
     })
     
     if (result.success) {
       bookingMessage.value = '预约成功！'
       bookingMessageType.value = 'success'
-      
-      // 关闭弹框并刷新数据
+      // 重新获取预约记录
+      await fetchBookings()
+      // 关闭弹窗
       setTimeout(() => {
-        showBookingModal.value = false
-        fetchBookings()
+        closeBookingModal()
       }, 1500)
     } else {
       bookingMessage.value = result.message || '预约失败，请稍后重试'
       bookingMessageType.value = 'error'
     }
   } catch (error) {
-    bookingMessage.value = '预约失败，请稍后重试'
+    console.error('提交预约失败:', error)
+    bookingMessage.value = '网络错误，请稍后重试'
     bookingMessageType.value = 'error'
   } finally {
     isSubmitting.value = false
   }
 }
 
-// 获取预约记录
-const fetchBookings = async () => {
-  isLoading.value = true
+// 提交批量预约
+const submitBatchBooking = async () => {
+  // 表单验证
+  if (!batchBookingForm.value.name || !batchBookingForm.value.startTime || !batchBookingForm.value.endTime) {
+    bookingMessage.value = '请填写完整的预约信息'
+    bookingMessageType.value = 'error'
+    return
+  }
+  
+  // 检查是否选择了日期
+  if (selectedDates.value.length === 0) {
+    bookingMessage.value = '请至少选择一天'
+    bookingMessageType.value = 'error'
+    return
+  }
+  
+  // 时间验证
+  const [startHours, startMinutes] = batchBookingForm.value.startTime.split(':').map(Number)
+  const [endHours, endMinutes] = batchBookingForm.value.endTime.split(':').map(Number)
+  if (startHours > endHours || (startHours === endHours && startMinutes >= endMinutes)) {
+    bookingMessage.value = '结束时间必须晚于开始时间'
+    bookingMessageType.value = 'error'
+    return
+  }
+  
+  isSubmitting.value = true
   try {
-    const result = await callCloudFunction('getBookings')
-    if (result.success) {
-      bookings.value = result.data
+    let successCount = 0
+    let errorCount = 0
+    
+    // 遍历选择的日期，逐个提交预约
+    for (const date of selectedDates.value) {
+      const [year, month, day] = date.split('-').map(Number)
+      const startTime = new Date(year, month - 1, day, startHours, startMinutes)
+      const endTime = new Date(year, month - 1, day, endHours, endMinutes)
+      
+      // 检查是否与现有预约冲突
+      if (checkTimeConflict(startTime, endTime)) {
+        errorCount++
+        continue
+      }
+      
+      const result = await callCloudFunction('createBooking', {
+        name: batchBookingForm.value.name,
+        startTime: startTime.toISOString(),
+        endTime: endTime.toISOString()
+      })
+      
+      if (result.success) {
+        successCount++
+      } else {
+        errorCount++
+      }
+    }
+    
+    if (successCount > 0) {
+      bookingMessage.value = `成功预约 ${successCount} 天，${errorCount} 天失败（可能时间冲突）`
+      bookingMessageType.value = 'success'
+      // 重新获取预约记录
+      await fetchBookings()
+      // 清空日期选择
+      selectedDates.value = []
+      // 关闭弹窗
+      setTimeout(() => {
+        closeBatchBookingModal()
+        initCalendar()
+      }, 1500)
     } else {
-      console.error('获取预约记录失败:', result.message)
+      bookingMessage.value = '预约失败，可能所有时间段都已被预约'
+      bookingMessageType.value = 'error'
     }
   } catch (error) {
-    console.error('获取预约记录失败:', error)
+    console.error('提交批量预约失败:', error)
+    bookingMessage.value = '网络错误，请稍后重试'
+    bookingMessageType.value = 'error'
   } finally {
-    isLoading.value = false
+    isSubmitting.value = false
   }
 }
 
-// 删除预约记录
-const deleteBooking = async (id) => {
-  if (confirm('确定要删除这条预约记录吗？')) {
-    try {
-      const result = await callCloudFunction('deleteBooking', id)
-      if (result.success) {
-        fetchBookings()
-        // 重新获取当前日期的预约记录并按时间排序
-        selectedDayBookings.value = bookings.value
-          .filter(booking => {
-            const bookingDate = dayjs(booking.startTime)
-            return bookingDate.isSame(selectedDate.value, 'day')
-          })
-          .sort((a, b) => new Date(a.startTime) - new Date(b.startTime))
-      } else {
-        console.error('删除预约记录失败:', result.message)
-      }
-    } catch (error) {
-      console.error('删除预约记录失败:', error)
+// 删除预约
+const deleteBooking = async (bookingId) => {
+  if (!confirm('确定要删除这条预约记录吗？')) {
+    return
+  }
+  
+  try {
+    const result = await callCloudFunction('deleteBooking', bookingId)
+    if (result.success) {
+      // 重新获取预约记录
+      await fetchBookings()
+    } else {
+      alert('删除失败，请稍后重试')
     }
+  } catch (error) {
+    console.error('删除预约失败:', error)
+    alert('网络错误，请稍后重试')
   }
 }
 
-// 暴露方法给父组件
-defineExpose({
-  fetchBookings
-})
-
-onMounted(() => {
-  fetchBookings()
-})
+// 检查时间冲突
+const checkTimeConflict = (startTime, endTime) => {
+  return bookings.value.some(booking => {
+    const bookingStart = new Date(booking.startTime)
+    const bookingEnd = new Date(booking.endTime)
+    
+    // 检查是否有时间重叠
+    return (
+      (startTime >= bookingStart && startTime < bookingEnd) ||
+      (endTime > bookingStart && endTime <= bookingEnd) ||
+      (startTime <= bookingStart && endTime >= bookingEnd)
+    )
+  })
+}
 </script>
+
+<style scoped>
+/* 日历样式 */
+.date-picker-item {
+  min-height: 80px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+
+.current-month {
+  color: #333;
+}
+
+.other-month {
+  color: #ccc;
+}
+
+.past-date {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.selected {
+  background-color: #e6f7ff;
+  border: 2px solid #1890ff;
+}
+
+.has-booking {
+  position: relative;
+}
+
+.has-booking::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #1890ff;
+}
+
+.date-picker-day {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+  .date-picker-item {
+    min-height: 60px;
+  }
+  
+  .date-picker-day {
+    font-size: 14px;
+  }
+}
+</style>
