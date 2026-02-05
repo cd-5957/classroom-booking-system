@@ -245,8 +245,8 @@
 import { ref, computed, onMounted, watch } from 'vue'
 
 // 微信云开发配置
-const APPID = 'wxc4a5a5c3b6a1b2c3d' // 替换为你的小程序AppID
-const APPSECRET = 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6' // 替换为你的小程序AppSecret
+const APPID = 'wx5b4ca21b8b47b883' // 替换为你的小程序AppID
+const APPSECRET = '1bc6f78ca8056305460d73af9026e626' // 替换为你的小程序AppSecret
 const ENV = 'cloud1-2gs6ioay8f351f18'
 
 // 获取access_token
